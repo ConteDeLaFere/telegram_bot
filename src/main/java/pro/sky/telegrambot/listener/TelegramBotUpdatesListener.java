@@ -2,22 +2,28 @@ package pro.sky.telegrambot.listener;
 
 import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.UpdatesListener;
+import com.pengrad.telegrambot.model.Message;
 import com.pengrad.telegrambot.model.Update;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.pengrad.telegrambot.request.SendMessage;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
+import pro.sky.telegrambot.model.Notification;
+import pro.sky.telegrambot.service.NotificationService;
 
 import javax.annotation.PostConstruct;
 import java.util.List;
 
-@Service
+@Component
+@Slf4j
+@RequiredArgsConstructor
 public class TelegramBotUpdatesListener implements UpdatesListener {
-
-    private Logger logger = LoggerFactory.getLogger(TelegramBotUpdatesListener.class);
 
     @Autowired
     private TelegramBot telegramBot;
+
+    private final NotificationService notificationService;
 
     @PostConstruct
     public void init() {
@@ -27,8 +33,29 @@ public class TelegramBotUpdatesListener implements UpdatesListener {
     @Override
     public int process(List<Update> updates) {
         updates.forEach(update -> {
-            logger.info("Processing update: {}", update);
-            // Process your updates here
+            log.info("Processing update: {}", update);
+
+            Message message = update.message();
+            if (message != null) {
+
+                Long chatId = message.chat().id();
+                SendMessage sendMessage;
+
+                if (message.text().equals("/start")) {
+                    sendMessage = new SendMessage(chatId, "Welcome to Telegram Bot");
+                } else {
+                    Notification notification = notificationService.save(chatId, message.text());
+
+                    if (notification != null) {
+                        sendMessage = new SendMessage(chatId, "Notification was added");
+                    } else {
+                        sendMessage = new SendMessage(chatId, "Error! Notification was not added");
+                    }
+                }
+
+                telegramBot.execute(sendMessage);
+            }
+
         });
         return UpdatesListener.CONFIRMED_UPDATES_ALL;
     }
